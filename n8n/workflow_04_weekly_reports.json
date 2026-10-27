@@ -1,0 +1,80 @@
+{
+  "name": "AegisBank - 04 Generación y Distribución Automática de Reportes Ejecutivos",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [1],
+              "triggerAtHour": 7,
+              "triggerAtMinute": 0
+            }
+          ]
+        }
+      },
+      "id": "node-weekly-cron",
+      "name": "Cron (Lunes 07:00 AM)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/reports/export?format=PDF&report_type=EXECUTIVE_CISO",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "node-get-pdf",
+      "name": "Descargar PDF ReportLab de Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "soc-reports@banco.internal",
+        "toEmail": "ciso@banco.com, auditoria-ti@banco.com",
+        "subject": "=[CONFIDENCIAL] Informe Ejecutivo Semanal Antifraude y Phishing - AegisBank",
+        "text": "Estimados Miembros del Comité de Ciberseguridad y Auditoría,\n\nSe adjunta el informe consolidado correspondiente a la última semana de operaciones.\n\nAtentamente,\nCentro de Operaciones de Ciberseguridad (SOC)\nAegisBank Defense Platform",
+        "attachments": "data"
+      },
+      "id": "node-send-email",
+      "name": "Envío de Correo C-Level / Auditoría",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Cron (Lunes 07:00 AM)": {
+      "main": [
+        [
+          {
+            "node": "Descargar PDF ReportLab de Backend",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Descargar PDF ReportLab de Backend": {
+      "main": [
+        [
+          {
+            "node": "Envío de Correo C-Level / Auditoría",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+

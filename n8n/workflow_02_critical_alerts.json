@@ -1,0 +1,103 @@
+{
+  "name": "AegisBank - 02 Envío Multicanal de Alertas Críticas SOC",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegis-critical-alert",
+        "options": {}
+      },
+      "id": "node-webhook-alert",
+      "name": "Webhook Inbound de Backend",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.body.verdict }}",
+              "value2": "MALICIOUS"
+            }
+          ]
+        }
+      },
+      "id": "node-if-critical",
+      "name": "¿Es Veredicto Malicioso?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "channel": "#incidentes-criticos",
+        "text": "=🚨 *ALERTA ROJA: Phishing Bancario Confirmado*\n*Caso:* `{{ $json.body.incident_number }}`\n*URL Hostil:* `{{ $json.body.target_url }}`\n*Puntaje de Riesgo:* `{{ $json.body.risk_score }}/100`\n*Acción Tomada:* Incidente generado y puesto en triaje L2 inmediato."
+      },
+      "id": "node-slack-alert",
+      "name": "Alerta Slack CSIRT",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [750, 200]
+    },
+    {
+      "parameters": {
+        "title": "=🚨 Phishing Crítico: {{ $json.body.incident_number }}",
+        "text": "=Se ha detectado una suplantación activa de la marca bancaria en la URL: {{ $json.body.target_url }}. Se requiere contención perimetral inmediata."
+      },
+      "id": "node-teams-alert",
+      "name": "Alerta Microsoft Teams CISO",
+      "type": "n8n-nodes-base.microsoftTeams",
+      "typeVersion": 1,
+      "position": [750, 350]
+    },
+    {
+      "parameters": {
+        "from": "+1234567890",
+        "to": "+525500000000",
+        "message": "=ALERTA SOC BANCO: Incidente critico {{ $json.body.incident_number }}. URL phish: {{ $json.body.target_url }}. Proceder con bloqueo."
+      },
+      "id": "node-twilio-sms",
+      "name": "SMS On-Call Lead SOC",
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [750, 500]
+    }
+  ],
+  "connections": {
+    "Webhook Inbound de Backend": {
+      "main": [
+        [
+          {
+            "node": "¿Es Veredicto Malicioso?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Veredicto Malicioso?": {
+      "main": [
+        [
+          {
+            "node": "Alerta Slack CSIRT",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Alerta Microsoft Teams CISO",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SMS On-Call Lead SOC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+

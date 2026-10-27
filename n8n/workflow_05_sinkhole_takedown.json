@@ -1,0 +1,63 @@
+{
+  "name": "AegisBank - 05 Notificación Registral (Abuse Takedown) y DNS Sinkhole",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "aegis-sinkhole-action",
+        "options": {}
+      },
+      "id": "node-sinkhole-trigger",
+      "name": "Webhook Inbound Sinkhole",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://dns-sinkhole-manager.internal/api/v1/rpz/block",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"domain\": \"{{ $json.body.domain }}\",\n  \"policy\": \"NXDOMAIN\",\n  \"comment\": \"Bloqueo automatico por phishing AegisBank\"\n}"
+      },
+      "id": "node-dns-rpz",
+      "name": "Actualizar Política DNS RPZ",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "csirt-abuse@banco.com",
+        "toEmail": "={{ $json.body.registrar_abuse_email || 'abuse@registrar.com' }}",
+        "subject": "=URGENT: Phishing Takedown Notice - Fraudulent Domain Impersonating Bank ({{ $json.body.domain }})",
+        "text": "=To the Abuse Department,\n\nWe have identified active financial phishing activity on domain: {{ $json.body.domain }}.\nThis domain is actively impersonating our banking institution and harvesting customer credentials.\n\nRFC 822 Forensic Evidence attached.\nCase ID: {{ $json.body.incident_number }}.\n\nPlease proceed with immediate DNS suspension.\n\nRegards,\nAegisBank CSIRT Team"
+      },
+      "id": "node-email-abuse",
+      "name": "Disparar Takedown al Registrar",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [480, 400]
+    }
+  ],
+  "connections": {
+    "Webhook Inbound Sinkhole": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Política DNS RPZ",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Disparar Takedown al Registrar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+

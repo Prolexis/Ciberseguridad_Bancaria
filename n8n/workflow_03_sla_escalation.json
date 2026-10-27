@@ -1,0 +1,109 @@
+{
+  "name": "AegisBank - 03 Escalamiento Automático de Incidentes por SLA Vencido",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "id": "node-sla-cron",
+      "name": "Cron (Cada 5 Minutos)",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://backend:8000/api/v1/incidents?status=NEW&limit=50",
+        "options": {}
+      },
+      "id": "node-query-unassigned",
+      "name": "Consultar Incidentes Pendientes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filtrar casos con SLA vencido o próximo a expirar en < 15 min\nconst incidents = $input.all();\nconst now = new Date().getTime();\nconst breached = [];\n\nfor (const item of incidents) {\n  const inc = item.json;\n  const slaTime = new Date(inc.sla_due_at).getTime();\n  if (slaTime - now <= 15 * 60 * 1000) {\n    breached.push({\n      json: {\n        ...inc,\n        minutes_remaining: Math.round((slaTime - now) / 60000)\n      }\n    });\n  }\n}\nreturn breached;"
+      },
+      "id": "node-filter-breached",
+      "name": "Identificar Casos en Riesgo de SLA",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=http://backend:8000/api/v1/incidents/{{ $json.id }}/status",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"INVESTIGATING\",\n  \"justification\": \"Escalamiento automático por n8n: SLA comprometido.\"\n}"
+      },
+      "id": "node-patch-escalation",
+      "name": "Escalar a Nivel L2 en Backend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [960, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#soc-jefatura",
+        "text": "=⚠️ *ESCALAMIENTO AUTOMÁTICO DE SLA*\nEl caso `{{ $json.incident_number }}` ha superado el tiempo máximo de atención inicial.\n- Minutos Restantes: `{{ $json.minutes_remaining }}`\n- Severidad: `{{ $json.severity }}`\n- Acción: Asignado automáticamente al Coordinador de Turno SOC L2."
+      },
+      "id": "node-slack-escalation",
+      "name": "Notificar a Coordinador SOC L2",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.1,
+      "position": [960, 400]
+    }
+  ],
+  "connections": {
+    "Cron (Cada 5 Minutos)": {
+      "main": [
+        [
+          {
+            "node": "Consultar Incidentes Pendientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Incidentes Pendientes": {
+      "main": [
+        [
+          {
+            "node": "Identificar Casos en Riesgo de SLA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identificar Casos en Riesgo de SLA": {
+      "main": [
+        [
+          {
+            "node": "Escalar a Nivel L2 en Backend",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Notificar a Coordinador SOC L2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
+
